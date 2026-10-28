@@ -1,0 +1,17 @@
+# Registro de Cambios: Adaptación a FPGA Tang Nano 20K y Contador 0-9 (`v3.1-fpga`)
+
+En esta versión se realizaron ajustes puntuales sobre la arquitectura base (`v3.0-baseline`) para permitir la síntesis en la FPGA **Sipeed Tang Nano 20K (Gowin GW2AR-18)** y la ejecución de programas secuenciales con saltos condicionales e interacción con botones físicos (`S1` y `S2`).
+
+## Resumen de Módulos Modificados vs Versión Base (`v3.0-baseline`)
+
+| Módulo | Qué se cambió o agregó | Por qué fue necesario el cambio |
+| :--- | :--- | :--- |
+| **`FS_machine.v`** | 1. Se agregó el puerto `iBIT_ACC`.<br>2. Se añadió el opcode `6'b111110` (`JMP_C`).<br>3. Se trasladó la activación de `oWR_PC` del estado `Decoding` al estado `Instruction_fetch` y se bloqueó `oINC_PC` durante un salto. | 1 y 2: Permite realizar saltos condicionales basados en el acumulador de bit (para leer el botón `S1` y evaluar si el contador llegó a `9` o `0`).<br>3: Evita que la dirección de salto se incremente en `+1` al finalizar la instrucción `JMP`. |
+| **`Decoder.v` y `Control_Unit.v`** | Se agregó el puerto de entrada `iBIT_ACC` y su conexión hacia `FS_machine`. | Enruta el estado actual del acumulador de 1 bit desde la ruta de datos hasta la máquina de estados. |
+| **`datapath.v`** | 1. Se conectó `ALU_BIT_PORTA` al puerto `iBIT_ACC` de `Control_Unit`.<br>2. Se agregó el multiplexor `ALU_W_PORTB` en la entrada `iB` de `ALU_Word`. | Permite que las instrucciones enteras (`ADD_I`, `SUB_I`, `EQ_W`) operen directamente sobre el valor del contador almacenado en la memoria `M1_x` (`%MW0`), conservando `RAM_2P` para la FPU. |
+| **`Data_select.v`** | 1. Separación de carga literal (`iINSTR[37] == 1`) y lectura de bit (`iINSTR[37] == 0`) en `iDEC`.<br>2. Captura de comparaciones de palabra (`6'b111001`..`6'b111011`) en `oALU_BIT_DATA_A`.<br>3. Escritura simultánea en `oQ0_X <= iALU_W_RESULT[7:0]` al ejecutar `ST_W %MWX`. | 1: Evita que instrucciones de palabra o salto sobreescriban el acumulador de bit.<br>2: Permite que `EQ_W` actualice la bandera usada por `JMP_C`.<br>3: Permite visualizar el valor binario del contador en los pines físicos/LEDs `oQ0_X` de la FPGA. |
+| **`integer_operation.v`** | 1. Se agregó el caso `5'b10110` (`Less-than`).<br>2. Se reemplazó la división combinacional `/` por `32'd0`. | El operador `/` de 32 bits en un solo ciclo genera una red combinacional masiva no apta para síntesis directa en LUTs de FPGA sin IP Core. |
+| **`IO_controller.v`** | Se agregó sensibilidad y limpieza asíncrona con `posedge iRESET`. | Garantiza que al presionar el botón físico `S2` (`iRESET`), los pines de salida `oQ0_X` se pongan en `0` de forma inmediata. |
+| **`Microprocessor_PLC.v`** | Se agregó un divisor de reloj de 19 bits (`clk_div`) controlado por el parámetro `USE_CLK_DIV`. | Reduce los 27 MHz del cristal de la Tang Nano 20K a una frecuencia visible para el ojo humano (~0.4 s por incremento del contador), permitiendo mantener `USE_CLK_DIV = 0` en simulación. |
+| **`Program_memory.v`** | Se programó la rutina de 15 instrucciones (`0x00` a `0x0E`) del contador ascendente/descendente de 0 a 9. | Implementa la lógica de control del contador leyendo `S1` (`%I0.0`) para elegir dirección ascendente/descendente y actualizando `%MW0` y `%Q0`. |
+| **`PLC.cst`** | Se asignaron los pines del cristal de 27 MHz (`Pin 4`), botón `S2` (`Pin 87`), botón `S1` (`Pin 88`) y LEDs (`Pines 15-20`). | Mapea las entradas y salidas del procesador al hardware real de la placa Sipeed Tang Nano 20K. |
