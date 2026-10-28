@@ -70,5 +70,26 @@ module Microprocessor_PLC(iCLK, iRESET, iI0_X, oQ0_X);
         .oPORT_WORD_OUT(PORT_W_OUT), 
         .oPORT_BIT_OUT(PORT_B_OUT)
     );
+// --- DECODIFICADOR 7 SEGMENTOS (Cátodo Común: Orden g, f, e, d, c, b, a) ---
+    reg [6:0] seg_decoder;
+    always @(*) begin
+        case (oQ0_X[3:0])
+            4'd0:    seg_decoder = 7'b0111111; // 0
+            4'd1:    seg_decoder = 7'b0000110; // 1
+            4'd2:    seg_decoder = 7'b1011011; // 2
+            4'd3:    seg_decoder = 7'b1001111; // 3
+            4'd4:    seg_decoder = 7'b1100110; // 4
+            4'd5:    seg_decoder = 7'b1101101; // 5
+            4'd6:    seg_decoder = 7'b1111101; // 6
+            4'd7:    seg_decoder = 7'b0000111; // 7
+            4'd8:    seg_decoder = 7'b1111111; // 8
+            4'd9:    seg_decoder = 7'b1101111; // 9
+            default: seg_decoder = 7'b0000000; // Apagado
+        endcase
+    end
+
+    assign seg = seg_decoder;
 
 endmodule
+
+
